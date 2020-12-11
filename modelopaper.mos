@@ -1,0 +1,81 @@
+!@encoding CP1252
+model Modelopaper
+uses "mmxprs","mmsheet"; !gain access to the Xpress-Optimizer solver
+
+declarations
+	!Indices
+	numBarras = 5     
+	numLineas = 4    
+	numAgre = 4    
+	numPeriodos = 24
+
+	barras = 1..numBarras
+	lineas = 1..numLineas
+	agregadores = 1..numAgre
+	periodos = 1..numPeriodos
+	
+	!Parametros---------------------------------------------------------------------
+	!precios mercado
+	pi_e, pi_capup, pi_capdn, pi_milup, pi_mildn: array(periodos) of real
+	pi_ek, pi_kcapup, pi_kcapdn, pi_kmilup, pi_kmildn: array(periodos,agregadores) of real
+	pi_ak1: array(peiodos) of real !se asume A={1}
+	
+	!parametros mileage caiso
+	s_dn, s_up, mu_up, mu_dn: array(periodos) of real
+	
+	!parametros DRAGs
+	p_ak1_max,r_k1_capupmax,r_k1_capdnmax: real
+	
+	!parametros ESAGs
+	eta_di, eta_ch, e_min, e_max, dr_max, cr_max: real
+	
+	!parametros EVCSs
+	er_max,err_max,e_int,cl_max, gamma_ch: real
+	
+	!parametros DDGAGs
+	p_k4max, p_k4min, ru, rd:real
+	
+	!parametros power flow
+	h:array(barras, agregadores) of integer
+	p_d, q_d: array(barras, periodos) of real !demanda fija
+	a: array(lineas, barras) of integer
+	r, x: array(lineas) of real
+	c:array(barras, barras) of integer
+	v_min, v_max, pl_max, ql_max: real
+	!falta valor tan(phi) es parametro?
+	
+	!Variables de decisión-----------------------------------------------
+	!variables FO
+	p_sub, r_subup, r_subdn: array(periodos) of mpvar
+	p_k, r_kup, r_kdn: array(periodos, agregadores) of mpvar !incluye k1
+	
+	!variables DRAGs
+	r_kcapup, r_kcapdn: array(periodos, agregadores) of mpvar !incluye k1
+	
+	!variables ESAGs
+	e_k2,p_k2di,p_k2ch: array(periodos) of mpvar
+	r_k2capup_di,r_k2capdn_ch, r_k2capdn_di,r_k2capup_ch: array(periodos) of mpvar
+	b_k2: array(periodos) of mpvar !variable binaria
+	
+	!Variables EVCS
+	b_k3: array(periodos) of mpvar !variable binaria
+	!Variables DDGAG, ya estan todas
+	
+	!Variables distribution power flow
+	pl, ql: array(lineas,periodos) of mpvar
+	v_m,v_n: array(barras,periodos) of mpvar
+	
+	objetivo:linctr
+	
+end-declarations
+
+if PROJECTDIR <> '' then
+  setparam('workdir', PROJECTDIR)
+  writeln("Project directory: " + PROJECTDIR)
+end-if
+
+writeln("Begin running model")
+!...
+writeln("End running model")
+
+end-model
