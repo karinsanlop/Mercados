@@ -1,0 +1,133 @@
+!@encoding CP1252
+model Modelopaper
+uses "mmxprs","mmsheet"; !gain access to the Xpress-Optimizer solver
+
+declarations
+	!Indices
+	numBarras = 5     
+	numLineas = 4    
+	numAgre = 4    
+	numPeriodos = 24
+
+	barras = 1..numBarras
+	lineas = 1..numLineas
+	agregadores = 1..numAgre
+	periodos = 1..numPeriodos
+	
+	!Parametros---------------------------------------------------------------------
+	!precios mercado
+	pi_e, pi_capup, pi_capdn, pi_milup, pi_mildn: array(periodos) of real
+	pi_ek, pi_kcapup, pi_kcapdn, pi_kmilup, pi_kmildn: array(periodos,agregadores) of real
+	pi_ak1: array(peiodos) of real !se asume A={1}
+	
+	!parametros mileage caiso
+	s_dn, s_up, mu_up, mu_dn: array(periodos) of real
+	
+	!parametros DRAGs
+	p_ak1_max,r_k1_capupmax,r_k1_capdnmax: real
+	
+	!parametros ESAGs
+	eta_di, eta_ch, e_min, e_max, dr_max, cr_max: real
+	
+	!parametros EVCSs
+	er_max,err_max,e_int,cl_max, gamma_ch: real
+	
+	!parametros DDGAGs
+	p_k4max, p_k4min, ru, rd:real
+	
+	!parametros power flow
+	h:array(barras, agregadores) of integer
+	p_d, q_d: array(barras, periodos) of real !demanda fija
+	a: array(lineas, barras) of integer
+	r, x: array(lineas) of real
+	c:array(barras, barras) of integer
+	v_min, v_max, pl_max, ql_max: real
+	!falta valor tan(phi) es parametro?
+	
+	!Variables de decisión-----------------------------------------------
+	!variables FO
+	p_sub, r_subup, r_subdn: array(periodos) of mpvar
+	p_k, r_kup, r_kdn: array(periodos, agregadores) of mpvar !incluye k1
+	
+	!variables DRAGs
+	r_kcapup, r_kcapdn: array(periodos, agregadores) of mpvar !incluye k1
+	
+	!variables ESAGs
+	e_k2,p_k2di,p_k2ch: array(periodos) of mpvar
+	r_k2capup_di,r_k2capdn_ch, r_k2capdn_di,r_k2capup_ch: array(periodos) of mpvar
+	b_k2: array(periodos) of mpvar !variable binaria
+	
+	!Variables EVCS
+	b_k3: array(periodos) of mpvar !variable binaria
+	!Variables DDGAG, ya estan todas
+	
+	!Variables distribution power flow
+	pl, ql: array(lineas,periodos) of mpvar
+	v_m,v_n: array(barras,periodos) of mpvar
+	
+	objetivo:linctr
+	
+end-declarations
+
+!Funcion objetivo 
+objetivo:= sum(t in periodos)(-p_sub(t)*pi_e(t)-r_subup(t)*pi_capup(t)-r_subdn(t)*pi_capdn(t)- 
+          r_subup(t)*s_up(t)*mu_up(t)*pi_milup(t)-r_subdn*s_dn(t)*mu_dn(t)*pi_mildn(t)+
+          sum(k in agregadores|(k=2 or k=4))p_k(t,k)*pi_ek(t,k)-sum(k in agregadores|k=3)p_k(t,k)*pi_e(t,k)+ 
+          sum(k in agregadores)(r_kup(t,k)*pi_kcapup(t,k)+r_kdn(p,k)*pi_kcapdn(t,k)+ 
+          r_kup(t,k)*s_dn(t)*mu_up(t)*pi_kmilup(t,k)+r_kdn(t,k)*s_dn(t)*mu_dn(t)*pi_kmildn(t,k))- 
+          sum(k in agregadores|k=1)p_k(t,k)*pi_ak1(t)) 
+          
+ !Restricciones DRAGs
+ forall(t in periodos, k in agregadores) do 
+  if k=1 then
+    p_k(t,k)-r_kcapdn(t,k)>=0 !R(2) 	 
+    p_k(t,k)-r_kcapup(t,k)<=p_ak1_max !R(3) 	 
+    p_k(t,k)>=0 !R(4) 	 
+    p_k(t,k)<=p_ak1_max 	
+    r_kcapup(t,k)>=0 !R(5) 	 
+    r_kcapup(t,k)<=r_k1_capupmax 	 
+    r_kcapdn(t,k)>=0 !R(6) 	 
+    r_kcapdn(t,k)<=r_k1_capdnmax 	
+    end-if 
+ end-do 
+ 
+ !Restricciones ESAGs (CONDICIONES INICIALES(?)) 
+ forall(t in periodos,k in agregadores)do 	
+  if k=2 then 	 
+      p_k(t,k)=e_k2(t-1)-e_k2(t)+(1/eta_di)*r_kcapup(t,k)*mu_up(t)-eta_ch*r_kcapdn(t,k)*mu_dn(t) !R(7) 	 
+      p_k(t,k)=(1/eta_di)*p_k2di(t)-eta_ch*p_k2tch(t) !R(8) 	 
+      r_kcapup(t,k)=r_k2capup_di(t)+r_k2capdn_ch(t) !R(9) 	
+      r_kcapdn(t,k)=r_k2capdn_di(t)+r_k2capup_ch(t) !R(10) 	 
+      e_k2(t)>=e_min !R(11) 	 
+      e_k2(t)<=e_max 	 
+      b_k2(t) is_binary 	
+      p_k2di(t)>=0 !R(12) 	 
+      p_k2di(t)<=b_k2(t)*dr_max 	 
+      r_k2capup_di(t)>=0 !R(13) 	 
+      r_k2capup_di(t)<=b_k2(t)*dr_max 	 
+      r_k2capdn_di(t)>=0 !R(14) 	 
+      r_k2capdn_di(t)<=b_k2(t)*dr_max 	 
+      p_k2ch(t)>=0 !R(15) 	 
+      p_k2ch(t)<=(1-b_k2(t))*cr_max 	 
+      r_k2capup_ch(t)>=0 !R(16) 	 
+      r_k2capup_ch(t)<=(1-b_k2(t))*cr_max 	 
+      r_k2capdn_ch(t)>=0 !R(17) 	 
+      r_k2capdn_ch(t)<=(1-b_k2(t))*cr_max 	 
+      p_k2di(t)>=r_k2capdn_di(t) !R(18) 	
+      p_k2di(t)<=dr_max-r_k2capup_di(t) 	 
+      p_k2ch(t)>=r_k2capdn_ch(t) !R(19) 	 
+      p_k2di(t)<=cr_max-r_k2capup_ch(t)	 	
+      end-if 
+   end-do
+
+
+if PROJECTDIR <> '' then
+  setparam('workdir', PROJECTDIR)
+  writeln("Project directory: " + PROJECTDIR)
+end-if
+
+writeln("Begin running model")
+!...
+writeln("End running model")
+
+end-model
