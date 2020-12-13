@@ -44,7 +44,7 @@ declarations
 	v_min, v_max, pl_max, ql_max: real
 	!falta valor tan(phi) es parametro?
 	
-	!Variables de decisión-----------------------------------------------
+	!Variables de decisiÃ³n-----------------------------------------------
 	!variables FO
 	p_sub, r_subup, r_subdn: array(periodos) of mpvar
 	p_k, r_kup, r_kdn: array(periodos, agregadores) of mpvar !incluye k1
@@ -68,6 +68,60 @@ declarations
 	objetivo:linctr
 	
 end-declarations
+
+!Funcion objetivo
+objetivo:= sum(t in periodos)(-p_sub(t)*pi_e(t)-r_subup(t)*pi_capup(t)-r_subdn(t)*pi_capdn(t)-
+			r_subup(t)*s_up(t)*mu_up(t)*pi_milup(t)-r_subdn*s_dn(t)*mu_dn(t)*pi_mildn(t)+
+			sum(k in agregadores|(k=2 or k=4))p_k(t,k)*pi_ek(t,k)-sum(k in agregadores|k=3)p_k(t,k)*pi_e(t,k)+
+			sum(k in agregadores)(r_kup(t,k)*pi_kcapup(t,k)+r_kdn(p,k)*pi_kcapdn(t,k)+
+			r_kup(t,k)*s_dn(t)*mu_up(t)*pi_kmilup(t,k)+r_kdn(t,k)*s_dn(t)*mu_dn(t)*pi_kmildn(t,k))-
+			sum(k in agregadores|k=1)p_k(t,k)*pi_ak1(t))
+			
+!Restricciones DRAGs
+forall(t in periodos, k in agregadores) do
+	if k=1 then
+	  p_k(t,k)-r_kcapdn(t,k)>=0 !R(2)
+	  p_k(t,k)-r_kcapup(t,k)<=p_ak1_max !R(3)
+	  p_k(t,k)>=0 !R(4)
+	  p_k(t,k)<=p_ak1_max
+	  r_kcapup(t,k)>=0 !R(5)
+	  r_kcapup(t,k)<=r_k1_capupmax 
+	  r_kcapdn(t,k)>=0 !R(6)
+	  r_kcapdn(t,k)<=r_k1_capdnmax
+	end-if
+end-do
+
+!Restricciones ESAGs (CONDICIONES INICIALES(?))
+forall(t in periodos,k in agregadores)do
+	if k=2 then
+	  p_k(t,k)=e_k2(t-1)-e_k2(t)+(1/eta_di)*r_kcapup(t,k)*mu_up(t)-eta_ch*r_kcapdn(t,k)*mu_dn(t) !R(7)
+	  p_k(t,k)=(1/eta_di)*p_k2di(t)-eta_ch*p_k2tch(t) !R(8)
+	  r_kcapup(t,k)=r_k2capup_di(t)+r_k2capdn_ch(t) !R(9)
+	  r_kcapdn(t,k)=r_k2capdn_di(t)+r_k2capup_ch(t) !R(10)
+	  e_k2(t)>=e_min !R(11)
+	  e_k2(t)<=e_max
+	  b_k2(t) is_binary
+	  p_k2di(t)>=0 !R(12)
+	  p_k2di(t)<=b_k2(t)*dr_max
+	  r_k2capup_di(t)>=0 !R(13)
+	  r_k2capup_di(t)<=b_k2(t)*dr_max
+	  r_k2capdn_di(t)>=0 !R(14)
+	  r_k2capdn_di(t)<=b_k2(t)*dr_max
+	  p_k2ch(t)>=0 !R(15)
+	  p_k2ch(t)<=(1-b_k2(t))*cr_max
+	  r_k2capup_ch(t)>=0 !R(16)
+	  r_k2capup_ch(t)<=(1-b_k2(t))*cr_max
+	  r_k2capdn_ch(t)>=0 !R(17)
+	  r_k2capdn_ch(t)<=(1-b_k2(t))*cr_max
+	  p_k2di(t)>=r_k2capdn_di(t) !R(18)
+	  p_k2di(t)<=dr_max-r_k2capup_di(t)
+	  p_k2ch(t)>=r_k2capdn_ch(t) !R(19)
+	  p_k2di(t)<=cr_max-r_k2capup_ch(t)	  
+	end-if
+end-do
+
+
+
 
 if PROJECTDIR <> '' then
   setparam('workdir', PROJECTDIR)
